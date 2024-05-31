@@ -1,0 +1,75 @@
+
+--1task Уточнялось как пользоваться information_schema, как правильно пользоваться Interval, Floor, Rand
+ #task1
+SELECT 
+    @date := CURDATE() AS random_date
+UNION
+SELECT 
+    @date := DATE_ADD(@date, INTERVAL FLOOR(RAND() *(7-2) ) + 2 DAY) AS random_date
+FROM information_schema.tables
+LIMIT 100;
+
+--2task уточнялось как корректно писать оконные функции, какая конкретно функция подойдет для решения задачи
+WITH SalesData AS (
+    SELECT
+        e.id,
+        e.name,
+        COUNT(s.id) AS sales_c,
+        SUM(s.price) AS sales_s
+    FROM
+        employee e
+    LEFT JOIN
+        sales s ON e.id = s.employee_id
+    GROUP BY
+        e.id, e.name
+),
+RankedSales AS (
+    SELECT
+        id,
+        name,
+        sales_c,
+        sales_s,
+        RANK() OVER (ORDER BY sales_c DESC) AS sales_rank_c,
+        RANK() OVER (ORDER BY sales_s DESC) AS sales_rank_s
+    FROM
+        SalesData
+)
+SELECT
+    id,
+    name,
+    sales_c,
+    sales_rank_c,
+    sales_s,
+    sales_rank_s
+FROM
+    RankedSales
+ORDER BY
+    id;
+--3task уточнялось как корректно писать оконные функции, какие конкретно функции подойдут для решения задачи
+WITH AllDates AS (
+    SELECT tdate as dt FROM transfers
+    UNION
+    SELECT DATE '3000-01-01'
+),
+AccountDates AS (
+    SELECT acc, dt, 
+           SUM(amount) OVER (PARTITION BY acc ORDER BY dt) AS balance,
+           LAG(dt) OVER (PARTITION BY acc ORDER BY dt) AS dt_from
+    FROM (
+        SELECT from AS acc, tdate AS dt, -amount AS amount FROM transfers
+        UNION ALL
+        SELECT to AS acc, tdate AS dt, amount AS amount FROM transfers
+        UNION ALL
+        SELECT DISTINCT from AS acc, DATE '3000-01-01' AS dt, 0 AS amount FROM transfers
+        UNION ALL
+        SELECT DISTINCT to AS acc, DATE '3000-01-01' AS dt, 0 AS amount FROM transfers
+    ) AS subquery
+),
+AccountPeriods AS (
+    SELECT acc, dt_from, dt AS dt_to, balance
+    FROM AccountDates
+    WHERE dt_from IS NOT NULL
+)
+SELECT acc, dt_from, dt_to, balance
+FROM AccountPeriods
+ORDER BY acc, dt_from;
